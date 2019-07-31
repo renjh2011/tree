@@ -1,8 +1,6 @@
-package com.huazi.tree.binary.plus;
+package io.openmessaging;
 
-import java.util.Arrays;
-import java.util.Comparator;
-import java.util.Random;
+import java.util.*;
 
 public class BPlusTree<Key extends Comparable<Key>, Value> {
     /**
@@ -31,6 +29,9 @@ public class BPlusTree<Key extends Comparable<Key>, Value> {
          * 孩子数组
          */
         private Entry[] children = new Entry[M];
+
+        private Node next;
+        private Node prev;
 
         /**
          * 创建一个长度为k的节点
@@ -169,14 +170,22 @@ public class BPlusTree<Key extends Comparable<Key>, Value> {
             return null;
         }
         else {
-            return split(node);
+            return split(node,ht);
         }
     }
 
-    private Node split(Node node) {
+    private Node split(Node node, int ht) {
         Node t = new Node(1);
         node.len = M-1;
         t.children[0] = node.children[M-1];
+        if(ht==0){
+            t.next=node.next;
+            if(t.next!=null) {
+                t.next.prev=t;
+            }
+            node.next=t;
+            t.prev=node;
+        }
         return t;
     }
 
@@ -229,5 +238,71 @@ public class BPlusTree<Key extends Comparable<Key>, Value> {
         String s = st.search(st.root,5635435,st.height);
         end = System.currentTimeMillis();
         System.out.println((end-start)+"---"+st.getHeight() + "]");
+    }
+
+    public List<Value> find(Node node, Key minKey, Key maxKey, int ht) {
+        Entry[] children = node.children;
+        Entry keyEntry = new Entry(minKey,null,null,null);
+
+        //叶子节点
+        if (ht == 0) {
+            int loc = Arrays.binarySearch(children, 0, node.len, keyEntry, Comparator.comparing(o -> o.key));
+            if(loc>=0){
+                /*
+                 *向前查找一样的
+                 */
+                Node tempNode = node;
+                while (tempNode.prev!=null){
+                    tempNode=tempNode.prev;
+                    if(tempNode.children[tempNode.len-1].key.compareTo(minKey)<0){
+                        break;
+                    }
+                }
+                while (tempNode!=null) {
+                    boolean flag = false;
+                    for (int i = 0; i < tempNode.len; i++) {
+                        if (tempNode.children[i].key.compareTo(minKey) == 0) {
+                            loc = i;
+                            flag=true;
+                            break;
+                        }
+                    }
+                    if(flag)break;
+                    tempNode = tempNode.next;
+                }
+
+                List<Value> valueList = new ArrayList<>();
+                for(int j=loc;j<tempNode.len && tempNode.children[j].key.compareTo(maxKey)<=0;j++){
+                    valueList.add((Value) tempNode.children[j].val);
+                }
+                if(tempNode.children[tempNode.len-1].key.compareTo(maxKey)>0){
+                    return valueList;
+                }
+                //得到Node
+                while (tempNode.next!=null){
+                    tempNode = tempNode.next;
+                    if(tempNode.children[tempNode.len-1].key.compareTo(maxKey)>0){
+                        for(int j=0;j<tempNode.len && tempNode.children[j].key.compareTo(maxKey)<=0;j++){
+                            valueList.add((Value) tempNode.children[j].val);
+                        }
+                        break;
+                    }else {
+                        for (int j = 0; j < tempNode.len; j++) {
+                            valueList.add((Value) tempNode.children[j].val);
+                        }
+                    }
+                }
+                return valueList;
+            }
+        }
+        //非叶子节点
+        else {
+            int loc = Arrays.binarySearch(children, 1, node.len, keyEntry,Comparator.comparing(o -> o.key));
+            int index = loc>=0 ? loc : -1-loc-1;
+            if(index <= node.len && index>=0){
+                return find(children[index++].next,minKey,maxKey,ht-1);
+            }
+        }
+        return null;
     }
 }
